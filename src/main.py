@@ -10,6 +10,15 @@ find the middle snake of an optimal path with a forward and a backward
 search running at the same time, then solve the two halves on either side
 of it. Working this way needs only O(N + M) memory, which matters for the
 500,000-line tests.
+
+Two exact (minimality-preserving) speed-ups run before Myers:
+  1. Every element is replaced by a small integer id, so comparisons are
+     integer comparisons instead of byte-string comparisons.
+  2. Elements that occur in only one of the two sequences can never be part
+     of a common subsequence, so they are removed before the search and are
+     reported as deleted/inserted afterwards. The longest common subsequence
+     of the reduced sequences is exactly the longest common subsequence of the
+     originals, so the diff stays minimal.
 """
 
 import sys
@@ -134,7 +143,7 @@ def find_middle_snake(a, alo, ahi, b, blo, bhi, fv, bv):
 
 def myers_snakes(a, b):
     """Return the matched runs (x, y, length) of a shortest edit script turning
-    a into b, sorted by position. a and b are sequences of comparable items."""
+    a into b, sorted by position. a and b are lists of integers."""
     n, m = len(a), len(b)
     # Diagonals run from -(m + 1) to n + 1 (including sentinels); n + m + 3
     # slots keep negative and non-negative indices apart.
@@ -177,12 +186,33 @@ def myers_snakes(a, b):
 
 def matching_pairs(a, b):
     """Return (ai, bi): parallel lists of indices such that a[ai[t]] == b[bi[t]]
-    form a longest common subsequence of a and b, in increasing order."""
+    form a longest common subsequence of a and b, in increasing order.
+
+    a and b may be any sequences of hashable items (lines as bytes, or the
+    characters of one line)."""
+    ids = {}
+    a_ids = [ids.setdefault(item, len(ids)) for item in a]
+    b_ids = [ids.setdefault(item, len(ids)) for item in b]
+
+    # Drop elements that cannot be matched (they appear in one side only).
+    # Ids are 0..len(ids)-1, so one flag byte per id is enough.
+    in_a = bytearray(len(ids))
+    in_b = bytearray(len(ids))
+    for v in a_ids:
+        in_a[v] = 1
+    for v in b_ids:
+        in_b[v] = 1
+    del ids
+    a_map = [i for i, v in enumerate(a_ids) if in_b[v]]
+    b_map = [j for j, v in enumerate(b_ids) if in_a[v]]
+    a_red = [a_ids[i] for i in a_map]
+    b_red = [b_ids[j] for j in b_map]
+
     ai = []
     bi = []
-    for x, y, length in myers_snakes(a, b):
-        ai.extend(range(x, x + length))
-        bi.extend(range(y, y + length))
+    for x, y, length in myers_snakes(a_red, b_red):
+        ai.extend(a_map[x:x + length])
+        bi.extend(b_map[y:y + length])
     return ai, bi
 
 
