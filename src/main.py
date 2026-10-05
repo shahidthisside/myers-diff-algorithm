@@ -217,10 +217,36 @@ def matching_pairs(a, b):
 
 
 # ---------------------------------------------------------------------------
+# Part B: changed-character ranges
+# ---------------------------------------------------------------------------
+
+def changed_ranges(length, kept):
+    """Format the positions 0..length-1 that are not in `kept` (sorted indices
+    of matched characters) as merged half-open ranges, or "." if none."""
+    parts = []
+    pos = 0
+    for k in kept + [length]:
+        if k > pos:
+            parts.append("%d-%d" % (pos, k))
+        pos = k + 1
+    return ",".join(parts) if parts else "."
+
+
+def highlight_line(old, new):
+    """Return the "? old | new" line for one paired - / + line."""
+    old_text = old.decode("utf-8", "surrogateescape")
+    new_text = new.decode("utf-8", "surrogateescape")
+    # Python strings index by Unicode code point, as the ranges require.
+    kept_old, kept_new = matching_pairs(old_text, new_text)
+    return ("? %s | %s\n" % (changed_ranges(len(old_text), kept_old),
+                             changed_ranges(len(new_text), kept_new))).encode("ascii")
+
+
+# ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 
-def render(a, b):
+def render(a, b, highlight):
     """Build the whole output as bytes.
 
     Between two consecutive kept lines all deleted lines are printed before
@@ -243,6 +269,10 @@ def render(a, b):
             emit(b"+")
             emit(b[q])
             emit(b"\n")
+            if highlight:
+                p = i + (q - j)      # the q-th "+" pairs with the q-th "-"
+                if p < x:
+                    emit(highlight_line(a[p], b[q]))
         if t == last:
             break
         emit(b" ")
@@ -263,7 +293,7 @@ def main() -> int:
     except OSError as err:
         print("error: cannot read %s: %s" % (err.filename, err.strerror), file=sys.stderr)
         return 2
-    sys.stdout.buffer.write(render(a, b))
+    sys.stdout.buffer.write(render(a, b, command == "highlight"))
     sys.stdout.buffer.flush()
     return 0
 
